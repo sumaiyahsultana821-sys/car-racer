@@ -2,25 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Car Racer</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
     background: #1a1a2e;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     min-height: 100vh;
     font-family: 'Segoe UI', Arial, sans-serif;
     color: #fff;
+    overflow-x: hidden;
+    touch-action: none;
+    padding: 10px 0 20px;
   }
-  h1 { margin-bottom: 10px; letter-spacing: 2px; }
-  #gameWrap { position: relative; }
+  h1 { margin-bottom: 10px; letter-spacing: 2px; font-size: clamp(20px, 5vw, 28px); }
+  #gameWrap { position: relative; max-width: 96vw; }
   canvas {
     border: 4px solid #eee;
     border-radius: 8px;
     display: block;
+    max-width: 96vw;
+    height: auto;
+    touch-action: none;
   }
   #hud {
     position: absolute;
@@ -42,7 +49,7 @@
   #overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.82);
+    background: rgba(0,0,0,0.85);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -51,10 +58,10 @@
     border-radius: 4px;
     padding: 20px;
   }
-  #overlay h2 { font-size: 30px; margin-bottom: 10px; }
+  #overlay h2 { font-size: clamp(22px, 6vw, 30px); margin-bottom: 10px; }
   #overlay p { margin-bottom: 14px; font-size: 15px; color: #ccc; }
   button {
-    padding: 10px 24px;
+    padding: 12px 24px;
     font-size: 16px;
     background: #e94560;
     border: none;
@@ -64,14 +71,13 @@
     font-weight: bold;
     margin: 6px;
     min-width: 200px;
+    touch-action: manipulation;
   }
   button:hover { background: #ff5773; }
-  button.secondary {
-    background: #444;
-  }
+  button.secondary { background: #444; }
   button.secondary:hover { background: #666; }
   input[type="text"] {
-    padding: 10px;
+    padding: 12px;
     font-size: 16px;
     border-radius: 6px;
     border: none;
@@ -83,7 +89,9 @@
   #instructions {
     margin-top: 10px;
     color: #aaa;
-    font-size: 14px;
+    font-size: 13px;
+    text-align: center;
+    max-width: 96vw;
   }
   .modeBtns { display: flex; flex-direction: column; }
   .nameTag {
@@ -91,6 +99,40 @@
     color: #ffd166;
     margin-bottom: 4px;
   }
+
+  /* ---------- Touch controls ---------- */
+  #touchControls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 400px;
+    margin-top: 14px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .touchGroup { display: flex; gap: 10px; }
+  .touchBtn {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    background: rgba(233, 69, 96, 0.85);
+    border: 2px solid rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: #fff;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .touchBtn:active, .touchBtn.pressed {
+    background: rgba(255, 87, 115, 1);
+    transform: scale(0.94);
+  }
+  .touchBtn.speedBtn { background: rgba(60,60,80,0.85); }
+  .touchBtn.speedBtn:active, .touchBtn.speedBtn.pressed { background: rgba(90,90,120,1); }
 </style>
 </head>
 <body>
@@ -102,7 +144,20 @@
   <div id="timerDisplay"></div>
   <div id="overlay"></div>
 </div>
-<div id="instructions">⬅️ ➡️ Move &nbsp; | &nbsp; ⬆️ ⬇️ Speed up / brake</div>
+
+<!-- On-screen touch controls: works on mobile AND can be clicked on desktop -->
+<div id="touchControls">
+  <div class="touchGroup">
+    <div class="touchBtn" id="btnLeft">⬅️</div>
+    <div class="touchBtn" id="btnRight">➡️</div>
+  </div>
+  <div class="touchGroup">
+    <div class="touchBtn speedBtn" id="btnBrake">🐢</div>
+    <div class="touchBtn speedBtn" id="btnGas">🚀</div>
+  </div>
+</div>
+
+<div id="instructions">Tap ⬅️➡️ to steer &nbsp;|&nbsp; Hold 🚀 for speed, 🐢 to brake &nbsp;|&nbsp; Swipe left/right also works</div>
 
 <script>
 const canvas = document.getElementById('game');
@@ -138,12 +193,58 @@ const THEMES = {
   }
 };
 
-let keys = {};
+// ---------- INPUT (touch/click buttons + optional keyboard, no arrows required) ----------
+let controls = { left: false, right: false, gas: false, brake: false };
+
+// Keyboard still works as a bonus for desktop users, but is not required
 document.addEventListener('keydown', e => {
   if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) e.preventDefault();
-  keys[e.key] = true;
+  if (e.key === "ArrowLeft") controls.left = true;
+  if (e.key === "ArrowRight") controls.right = true;
+  if (e.key === "ArrowUp") controls.gas = true;
+  if (e.key === "ArrowDown") controls.brake = true;
 });
-document.addEventListener('keyup', e => keys[e.key] = false);
+document.addEventListener('keyup', e => {
+  if (e.key === "ArrowLeft") controls.left = false;
+  if (e.key === "ArrowRight") controls.right = false;
+  if (e.key === "ArrowUp") controls.gas = false;
+  if (e.key === "ArrowDown") controls.brake = false;
+});
+
+// On-screen touch/click buttons
+function bindHoldButton(el, key) {
+  const setState = (val) => {
+    controls[key] = val;
+    el.classList.toggle('pressed', val);
+  };
+  el.addEventListener('touchstart', e => { e.preventDefault(); setState(true); }, { passive: false });
+  el.addEventListener('touchend', e => { e.preventDefault(); setState(false); }, { passive: false });
+  el.addEventListener('touchcancel', () => setState(false));
+  el.addEventListener('mousedown', e => { e.preventDefault(); setState(true); });
+  el.addEventListener('mouseup', () => setState(false));
+  el.addEventListener('mouseleave', () => setState(false));
+}
+bindHoldButton(document.getElementById('btnLeft'), 'left');
+bindHoldButton(document.getElementById('btnRight'), 'right');
+bindHoldButton(document.getElementById('btnGas'), 'gas');
+bindHoldButton(document.getElementById('btnBrake'), 'brake');
+
+// Swipe support directly on the canvas (extra mobile convenience)
+let swipeStartX = null;
+canvas.addEventListener('touchstart', e => {
+  swipeStartX = e.touches[0].clientX;
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (swipeStartX === null) return;
+  const dx = e.touches[0].clientX - swipeStartX;
+  if (dx > 15) { controls.right = true; controls.left = false; }
+  else if (dx < -15) { controls.left = true; controls.right = false; }
+}, { passive: true });
+canvas.addEventListener('touchend', () => {
+  swipeStartX = null;
+  controls.left = false;
+  controls.right = false;
+}, { passive: true });
 
 function laneCenter(i) {
   return roadLeft + laneWidth * i + laneWidth / 2;
@@ -238,17 +339,17 @@ function collide(a, b) {
   return ab.left < bb.right && ab.right > bb.left && ab.top < bb.bottom && ab.bottom > bb.top;
 }
 
-function update(dt) {
+function update() {
   if (!gameRunning) return;
 
   const speed = baseSpeed + score / 300;
 
   const moveSpeed = 5;
-  if (keys["ArrowLeft"]) player.x -= moveSpeed;
-  if (keys["ArrowRight"]) player.x += moveSpeed;
+  if (controls.left) player.x -= moveSpeed;
+  if (controls.right) player.x += moveSpeed;
   let curSpeedMod = speed;
-  if (keys["ArrowUp"]) curSpeedMod = speed * 1.6;
-  if (keys["ArrowDown"]) curSpeedMod = speed * 0.5;
+  if (controls.gas) curSpeedMod = speed * 1.6;
+  if (controls.brake) curSpeedMod = speed * 0.5;
 
   const half = player.w / 2;
   if (player.x < roadLeft + half) player.x = roadLeft + half;
@@ -286,8 +387,6 @@ function update(dt) {
 function drawRoad() {
   const theme = THEMES[currentMode] || THEMES[2];
 
-  // sky/background gradient outside road area shown via grass color for simplicity,
-  // but add subtle gradient background behind everything
   const grad = ctx.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, theme.sky[0]);
   grad.addColorStop(1, theme.sky[1]);
@@ -328,8 +427,7 @@ function draw() {
   player.draw();
 }
 
-let lastTime = null;
-function loop(ts) {
+function loop() {
   update();
   draw();
   if (gameRunning) requestAnimationFrame(loop);
