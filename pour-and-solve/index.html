@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pour & Solve</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #fff;
+    overflow-x: hidden;
+    touch-action: none;
+    padding: 10px 0 24px;
+  }
+  h1 { margin-bottom: 4px; letter-spacing: 2px; font-size: clamp(20px, 5vw, 28px); }
+  #sub { color: #9fb3d1; font-size: 13px; margin-bottom: 10px; text-align: center; max-width: 640px; padding: 0 12px; }
+  #toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+    max-width: 800px;
+    padding: 0 8px;
+  }
+  button {
+    background: #2c3e6b;
+    color: #fff;
+    border: 2px solid #4a63a0;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  button:hover:not(:disabled) { background: #3a5089; }
+  button:active:not(:disabled) { transform: scale(0.96); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.active { background: #e8a33d; border-color: #ffd54f; color: #201400; }
+  .levelBtn { padding: 7px 10px; min-width: 34px; }
+  .levelBtn.current { background: #4caf7d; border-color: #7bffbb; color: #06210f; }
+  #gameWrap { position: relative; max-width: 96vw; }
+  canvas {
+    border: 4px solid #eee;
+    border-radius: 8px;
+    display: block;
+    max-width: 96vw;
+    height: auto;
+    background: #cfe8ff;
+    touch-action: none;
+  }
+  #hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #14263f;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+    line-height: 1.5;
+    background: rgba(255,255,255,0.55);
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.82);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 4px;
+    padding: 20px;
+    gap: 12px;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { font-size: 28px; color: #ffd54f; }
+  #overlay p { font-size: 15px; color: #ddd; max-width: 420px; }
+  #overlayBtns { display: flex; gap: 10px; }
+</style>
+</head>
+<body>
+<h1>💧 POUR &amp; SOLVE</h1>
+<p id="sub">Drag planks to move them, drag their end-circles to rotate &amp; resize. Sketch new planks with Draw Plank. Route the water from the pipe into the glass, past the dashed fill line, to win each level.</p>
+
+<div id="toolbar">
+  <div id="levelBtns"></div>
+  <button id="startBtn">▶ Start Pouring</button>
+  <button id="drawBtn">✏ Draw Plank</button>
+  <button id="deleteBtn">🗑 Delete Selected</button>
+  <button id="resetBtn">⟲ Reset Level</button>
+</div>
+
+<div id="gameWrap">
+  <canvas id="game" width="800" height="560"></canvas>
+  <div id="hud"></div>
+  <div id="overlay">
+    <h2 id="overlayTitle">Level Complete!</h2>
+    <p id="overlayText"></p>
+    <div id="overlayBtns">
+      <button id="replayBtn">⟲ Replay</button>
+      <button id="nextBtn">Next Level ▶</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const hud = document.getElementById('hud');
+  const startBtn = document.getElementById('startBtn');
+  const drawBtn = document.getElementById('drawBtn');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayText = document.getElementById('overlayText');
+  const replayBtn = document.getElementById('replayBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const levelBtnsWrap = document.getElementById('levelBtns');
+
+  // ---------- Level definitions ----------
+  // Coordinates are for an 800x560 internal canvas.
+  const LEVELS = [
+    {
+      name: "Straight Down",
+      pipe: { x: 150, y: 45 },
+      glass: { x: 540, y: 400, w: 140, h: 110 },
+      target: 0.75,
+      drawBudget: 2,
+      fixed: [],
+      movable: [
+        { x1: 150, y1: 210, x2: 350, y2: 250, thickness: 16 }
+      ]
+    },
+    {
+      name: "The Wall",
+      pipe: { x: 400, y: 45 },
+      glass: { x: 90, y: 400, w: 130, h: 110 },
+      target: 0.75,
+      drawBudget: 2,
+      fixed: [
+        { x1: 400, y1: 300, x2: 700, y2: 300, thickness: 16 }
+      ],
+      movable: [
+        { x1: 260, y1: 190, x2: 470, y2: 230, thickness: 16 }
+      ]
+    },
+    {
+      name: "Zig Zag",
+      pipe: { x: 120, y: 45 },
+      glass: { x: 620, y: 410, w: 120, h: 100 },
+      target: 0.7,
+      drawBudget: 3,
+      fixed: [
+        { x1: 60,  y1: 190, x2: 340, y2: 220, thickness: 16 },
+        { x1: 460, y1: 320, x2: 740, y2: 300, thickness: 16 }
+      ],
+      movable: [
+        { x1: 300, y1: 260, x2: 470, y2: 260, thickness: 16 },
+        { x1: 550, y1: 130, x2: 700, y2: 160, thickness: 16 }
+      ]
+    },
+    {
+      name: "Split Funnel",
+      pipe: { x: 400, y: 45 },
+      glass: { x: 60, y: 420, w: 110, h: 95 },
+      target: 0.7,
+      drawBudget: 3,
+      fixed: [
+        { x1: 400, y1: 180, x2: 400, y2: 260, thickness: 16 },
+        { x1: 250, y1: 340, x2: 470, y2: 380, thickness: 16 }
+      ],
+      movable: [
+        { x1: 280, y1: 200, x2: 400, y2: 240, thickness: 16 },
+        { x1: 130, y1: 300, x2: 260, y2: 330, thickness: 16 }
+      ]
+    },
+    {
+      name: "Tight Squeeze",
+      pipe: { x: 700, y: 45 },
+      glass: { x: 40, y: 440, w: 100, h: 85 },
+      target: 0.65,
+      drawBudget: 4,
+      fixed: [
+        { x1: 560, y1: 150, x2: 760, y2: 180, thickness: 16 },
+        { x1: 340, y1: 260, x2: 560, y2: 240, thickness: 16 },
+        { x1: 160, y1: 380, x2: 380, y2: 360, thickness: 16 }
+      ],
+      movable: [
+        { x1: 480, y1: 340, x2: 620, y2: 370, thickness: 16 },
+        { x1: 220, y1: 420, x2: 340, y2: 440, thickness: 16 }
+      ]
+    }
+  ];
+
+  const GRAVITY = 0.32;
+  const DAMPING = 0.55;
+  const DROP_RADIUS = 4;
+  const EMIT_INTERVAL = 5; // frames between drops
+  const MAX_PARTICLES = 260;
+
+  let levelIndex = 0;
+  let level, obstacles, particles, fillDrops, wasted, emittedTick;
+  let isFlowing = false;
+  let drawModeOn = false;
+  let selected = -1;
+  let drag = null; // { kind:'move'|'end0'|'end1', startX, startY, ox1,oy1,ox2,oy2 }
+  let newPlank = null; // in-progress drawn plank
+  let drawBudgetLeft = 0;
+  let solved = false;
+
+  function cloneObstacles(lv) {
+    const list = [];
+    lv.fixed.forEach(o => list.push(Object.assign({ movable: false, drawn: false }, o)));
+    lv.movable.forEach(o => list.push(Object.assign({ movable: true, drawn: false }, o)));
+    return list;
+  }
+
+  function loadLevel(i) {
+    levelIndex = ((i % LEVELS.length) + LEVELS.length) % LEVELS.length;
+    level = LEVELS[levelIndex];
+    obstacles = cloneObstacles(level);
+    particles = [];
+    fillDrops = 0;
+    wasted = 0;
+    emittedTick = 0;
+    isFlowing = false;
+    drawModeOn = false;
+    selected = -1;
+    drag = null;
+    newPlank = null;
+    drawBudgetLeft = level.drawBudget;
+    solved = false;
+    overlay.classList.remove('show');
+    startBtn.textContent = '▶ Start Pouring';
+    updateButtons();
+    buildLevelButtons();
+  }
+
+  function buildLevelButtons() {
+    levelBtnsWrap.innerHTML = '';
+    LEVELS.forEach((lv, i) => {
+      const b = document.createElement('button');
+      b.className = 'levelBtn' + (i === levelIndex ? ' current' : '');
+      b.textContent = (i + 1);
+      b.title = lv.name;
+      b.onclick = () => loadLevel(i);
+      levelBtnsWrap.appendChild(b);
+    });
+  }
+
+  function updateButtons() {
+    drawBtn.textContent = '✏ Draw Plank (' + drawBudgetLeft + ')';
+    drawBtn.disabled = drawBudgetLeft <= 0;
+    drawBtn.classList.toggle('active', drawModeOn);
+    deleteBtn.disabled = !(selected >= 0 && obstacles[selected] && obstacles[selected].drawn);
+  }
+
+  // ---------- geometry helpers ----------
+  function closestOnSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((px - x1) * dx + (py - y1) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return { x: x1 + dx * t, y: y1 + dy * t, t: t };
+  }
+
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const c = closestOnSegment(px, py, x1, y1, x2, y2);
+    return { dist: Math.hypot(px - c.x, py - c.y), point: c };
+  }
+
+  // ---------- physics ----------
+  function emitParticle() {
+    particles.push({
+      x: level.pipe.x + (Math.random() - 0.5) * 4,
+      y: level.pipe.y,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: 0.5,
+      r: DROP_RADIUS,
+      alive: true
+    });
+  }
+
+  function glassSegments() {
+    const g = level.glass;
+    return [
+      { x1: g.x, y1: g.y, x2: g.x, y2: g.y + g.h, thickness: 10 },
+      { x1: g.x + g.w, y1: g.y, x2: g.x + g.w, y2: g.y + g.h, thickness: 10 },
+      { x1: g.x, y1: g.y + g.h, x2: g.x + g.w, y2: g.y + g.h, thickness: 10 }
+    ];
+  }
+
+  function stepPhysics() {
+    emittedTick++;
+    if (emittedTick >= EMIT_INTERVAL) {
+      emittedTick = 0;
+      if (particles.length < MAX_PARTICLES) emitParticle();
+    }
+
+    const g = level.glass;
+    const capacity = 90; // drops to fully fill a glass
+    const targetDrops = level.target * capacity;
+    const allSolids = obstacles.concat(glassSegments());
+    const margin = 14;
+    const innerLeft = g.x + margin, innerRight = g.x + g.w - margin;
+    const fillHeight = Math.min(g.h - 6, (fillDrops / capacity) * (g.h - 6));
+    const surfaceY = g.y + g.h - fillHeight;
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.vy += GRAVITY;
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // absorb into glass water
+      if (p.x > innerLeft && p.x < innerRight && p.y + p.r >= surfaceY && p.y < g.y + g.h + 20 && fillDrops < capacity) {
+        fillDrops = Math.min(capacity, fillDrops + 1);
+        particles.splice(i, 1);
+        continue;
+      }
+      // once glass is full, absorbed drops just vanish softly at the rim
+      if (p.x > innerLeft && p.x < innerRight && p.y + p.r >= g.y + g.h - fillHeight - 2 && fillDrops >= capacity) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      // collide with obstacles + glass walls
+      for (let s = 0; s < allSolids.length; s++) {
+        const seg = allSolids[s];
+        const r = p.r + seg.thickness / 2;
+        const res = distToSegment(p.x, p.y, seg.x1, seg.y1, seg.x2, seg.y2);
+        if (res.dist < r && res.dist > 0.0001) {
+          const nx = (p.x - res.point.x) / res.dist;
+          const ny = (p.y - res.point.y) / res.dist;
+          const overlap = r - res.dist;
+          p.x += nx * overlap;
+          p.y += ny * overlap;
+          const vdotn = p.vx * nx + p.vy * ny;
+          p.vx -= 2 * vdotn * nx;
+          p.vy -= 2 * vdotn * ny;
+          p.vx *= DAMPING;
+          p.vy *= DAMPING;
+          p.vx += (Math.random() - 0.5) * 0.25;
+        }
+      }
+
+      if (p.y > H + 30 || p.x < -30 || p.x > W + 30) {
+        particles.splice(i, 1);
+        wasted++;
+        continue;
+      }
+    }
+
+    if (!solved && fillDrops >= targetDrops) {
+      solved = true;
+      isFlowing = false;
+      startBtn.textContent = '▶ Start Pouring';
+      overlayTitle.textContent = '🎉 Level Complete!';
+      overlayText.textContent = 'You filled the glass! Drops wasted: ' + wasted + '.';
+      nextBtn.style.display = (levelIndex < LEVELS.length - 1) ? 'inline-block' : 'none';
+      overlay.classList.add('show');
+    }
+  }
+
+  // ---------- rendering ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // sky background
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#dff1ff');
+    sky.addColorStop(1, '#b9dcff');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // pipe
+    ctx.fillStyle = '#5b6b7c';
+    ctx.fillRect(level.pipe.x - 16, level.pipe.y - 30, 32, 30);
+    ctx.fillStyle = '#3f4b57';
+    ctx.fillRect(level.pipe.x - 20, level.pipe.y - 4, 40, 10);
+    if (isFlowing) {
+      ctx.strokeStyle = 'rgba(60,130,220,0.5)';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(level.pipe.x, level.pipe.y);
+      ctx.lineTo(level.pipe.x, level.pipe.y + 18);
+      ctx.stroke();
+    }
+
+    // fixed obstacles
+    obstacles.forEach((o, idx) => {
+      if (o.movable) return;
+      drawPlank(o, false, false);
+    });
+    // movable/drawn obstacles
+    obstacles.forEach((o, idx) => {
+      if (!o.movable) return;
+      drawPlank(o, true, idx === selected);
+    });
+
+    // in-progress drawn plank preview
+    if (newPlank) drawPlank(newPlank, true, true, true);
+
+    // glass
+    drawGlass();
+
+    // particles
+    ctx.fillStyle = '#2f7fe0';
+    particles.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // hud
+    const capacity = 90;
+    const pct = Math.min(100, Math.round((fillDrops / capacity) * 100));
+    const targetPct = Math.round(level.target * 100);
+    hud.innerHTML = 'Level ' + (levelIndex + 1) + ': ' + level.name +
+      '<br>Fill: ' + pct + '% / ' + targetPct + '% needed' +
+      '<br>Wasted drops: ' + wasted;
+  }
+
+  function drawPlank(o, movable, isSelected, isPreview) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = o.thickness;
+    ctx.strokeStyle = movable ? (o.drawn ? '#7c4a1e' : '#a0602b') : '#5a5a5a';
+    if (isPreview) ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(o.x1, o.y1);
+    ctx.lineTo(o.x2, o.y2);
+    ctx.stroke();
+    if (isSelected) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ffd54f';
+      ctx.beginPath();
+      ctx.moveTo(o.x1, o.y1);
+      ctx.lineTo(o.x2, o.y2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (movable) {
+      [[o.x1, o.y1], [o.x2, o.y2]].forEach(pt => {
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], 8, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? '#ffd54f' : '#e0b080';
+        ctx.fill();
+        ctx.strokeStyle = '#4a2f14';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+    }
+  }
+
+  function drawGlass() {
+    const g = level.glass;
+    const capacity = 90;
+    const fillHeight = Math.min(g.h - 6, (fillDrops / capacity) * (g.h - 6));
+    // water
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(g.x + 4, g.y + g.h - fillHeight, g.w - 8, fillHeight);
+    ctx.clip();
+    const wgrad = ctx.createLinearGradient(0, g.y + g.h - fillHeight, 0, g.y + g.h);
+    wgrad.addColorStop(0, '#7ec6ff');
+    wgrad.addColorStop(1, '#2f7fe0');
+    ctx.fillStyle = wgrad;
+    ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.restore();
+
+    // target line
+    const targetH = level.target * (g.h - 6);
+    ctx.strokeStyle = '#ff5252';
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(g.x - 6, g.y + g.h - targetH);
+    ctx.lineTo(g.x + g.w + 6, g.y + g.h - targetH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // glass walls
+    ctx.strokeStyle = '#274156';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(g.x, g.y + g.h);
+    ctx.lineTo(g.x + g.w, g.y + g.h);
+    ctx.lineTo(g.x + g.w, g.y);
+    ctx.stroke();
+  }
+
+  // ---------- input ----------
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  function clampPt(x, y) {
+    return { x: Math.max(0, Math.min(W, x)), y: Math.max(0, Math.min(H, y)) };
+  }
+
+  function hitTestObstacles(x, y) {
+    // endpoints first
+    for (let i = 0; i < obstacles.length; i++) {
+      const o = obstacles[i];
+      if (!o.movable) continue;
+      if (Math.hypot(x - o.x1, y - o.y1) < 12) return { idx: i, kind: 'end0' };
+      if (Math.hypot(x - o.x2, y - o.y2) < 12) return { idx: i, kind: 'end1' };
+    }
+    for (let i = 0; i < obstacles.length; i++) {
+      const o = obstacles[i];
+      if (!o.movable) continue;
+      const res = distToSegment(x, y, o.x1, o.y1, o.x2, o.y2);
+      if (res.dist < o.thickness / 2 + 6) return { idx: i, kind: 'move' };
+    }
+    return null;
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    const pos = getPos(e);
+
+    if (drawModeOn) {
+      newPlank = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y, thickness: 16, movable: true, drawn: true };
+      return;
+    }
+
+    const hit = hitTestObstacles(pos.x, pos.y);
+    if (hit) {
+      selected = hit.idx;
+      const o = obstacles[hit.idx];
+      drag = { kind: hit.kind, startX: pos.x, startY: pos.y, ox1: o.x1, oy1: o.y1, ox2: o.x2, oy2: o.y2 };
+    } else {
+      selected = -1;
+      drag = null;
+    }
+    updateButtons();
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    const pos = getPos(e);
+
+    if (drawModeOn && newPlank) {
+      const c = clampPt(pos.x, pos.y);
+      newPlank.x2 = c.x;
+      newPlank.y2 = c.y;
+      return;
+    }
+
+    if (drag && selected >= 0) {
+      const o = obstacles[selected];
+      if (drag.kind === 'move') {
+        const dx = pos.x - drag.startX, dy = pos.y - drag.startY;
+        const p1 = clampPt(drag.ox1 + dx, drag.oy1 + dy);
+        const p2 = clampPt(drag.ox2 + dx, drag.oy2 + dy);
+        o.x1 = p1.x; o.y1 = p1.y; o.x2 = p2.x; o.y2 = p2.y;
+      } else if (drag.kind === 'end0') {
+        const p = clampPt(pos.x, pos.y);
+        o.x1 = p.x; o.y1 = p.y;
+      } else if (drag.kind === 'end1') {
+        const p = clampPt(pos.x, pos.y);
+        o.x2 = p.x; o.y2 = p.y;
+      }
+    }
+  });
+
+  canvas.addEventListener('pointerup', e => {
+    if (drawModeOn && newPlank) {
+      const len = Math.hypot(newPlank.x2 - newPlank.x1, newPlank.y2 - newPlank.y1);
+      if (len > 30 && drawBudgetLeft > 0) {
+        obstacles.push(newPlank);
+        selected = obstacles.length - 1;
+        drawBudgetLeft--;
+      }
+      newPlank = null;
+      drawModeOn = false;
+      updateButtons();
+    }
+    drag = null;
+  });
+
+  drawBtn.addEventListener('click', () => {
+    if (drawBudgetLeft <= 0) return;
+    drawModeOn = !drawModeOn;
+    if (drawModeOn) selected = -1;
+    updateButtons();
+  });
+
+  deleteBtn.addEventListener('click', () => {
+    if (selected >= 0 && obstacles[selected] && obstacles[selected].drawn) {
+      obstacles.splice(selected, 1);
+      selected = -1;
+      drawBudgetLeft++;
+      updateButtons();
+    }
+  });
+
+  startBtn.addEventListener('click', () => {
+    if (solved) return;
+    isFlowing = !isFlowing;
+    startBtn.textContent = isFlowing ? '⏸ Pause' : '▶ Resume Pouring';
+  });
+
+  resetBtn.addEventListener('click', () => loadLevel(levelIndex));
+  replayBtn.addEventListener('click', () => loadLevel(levelIndex));
+  nextBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
+
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Delete' || e.key === 'Backspace') deleteBtn.click();
+  });
+
+  // ---------- main loop ----------
+  function loop() {
+    if (isFlowing && !solved) stepPhysics();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  loadLevel(0);
+  loop();
+})();
+</script>
+</body>
+</html>
