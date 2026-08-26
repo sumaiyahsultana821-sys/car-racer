@@ -2,31 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Car Racer</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
     background: #1a1a2e;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     min-height: 100vh;
     font-family: 'Segoe UI', Arial, sans-serif;
     color: #fff;
+    overflow-x: hidden;
+    touch-action: none;
+    padding: 10px 0 20px;
   }
-  h1 { margin-bottom: 10px; letter-spacing: 2px; }
-  #gameWrap { position: relative; }
+  h1 { margin-bottom: 10px; letter-spacing: 2px; font-size: clamp(20px, 5vw, 28px); }
+  #gameWrap { position: relative; max-width: 96vw; }
   canvas {
-    background: #555;
     border: 4px solid #eee;
     border-radius: 8px;
     display: block;
+    max-width: 96vw;
+    height: auto;
+    touch-action: none;
   }
   #hud {
     position: absolute;
     top: 10px;
     left: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 1px 1px 3px #000;
+    line-height: 1.4;
+  }
+  #timerDisplay {
+    position: absolute;
+    top: 10px;
+    right: 14px;
     font-size: 18px;
     font-weight: bold;
     text-shadow: 1px 1px 3px #000;
@@ -34,18 +49,19 @@
   #overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.75);
+    background: rgba(0,0,0,0.85);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
     border-radius: 4px;
+    padding: 20px;
   }
-  #overlay h2 { font-size: 32px; margin-bottom: 10px; }
-  #overlay p { margin-bottom: 15px; font-size: 16px; color: #ccc; }
+  #overlay h2 { font-size: clamp(22px, 6vw, 30px); margin-bottom: 10px; }
+  #overlay p { margin-bottom: 14px; font-size: 15px; color: #ccc; }
   button {
-    padding: 10px 24px;
+    padding: 12px 24px;
     font-size: 16px;
     background: #e94560;
     border: none;
@@ -53,13 +69,70 @@
     color: #fff;
     cursor: pointer;
     font-weight: bold;
+    margin: 6px;
+    min-width: 200px;
+    touch-action: manipulation;
   }
   button:hover { background: #ff5773; }
+  button.secondary { background: #444; }
+  button.secondary:hover { background: #666; }
+  input[type="text"] {
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 6px;
+    border: none;
+    outline: none;
+    text-align: center;
+    width: 220px;
+    margin-bottom: 14px;
+  }
   #instructions {
     margin-top: 10px;
     color: #aaa;
-    font-size: 14px;
+    font-size: 13px;
+    text-align: center;
+    max-width: 96vw;
   }
+  .modeBtns { display: flex; flex-direction: column; }
+  .nameTag {
+    font-size: 13px;
+    color: #ffd166;
+    margin-bottom: 4px;
+  }
+
+  /* ---------- Touch controls ---------- */
+  #touchControls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 400px;
+    margin-top: 14px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .touchGroup { display: flex; gap: 10px; }
+  .touchBtn {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    background: rgba(233, 69, 96, 0.85);
+    border: 2px solid rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: #fff;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .touchBtn:active, .touchBtn.pressed {
+    background: rgba(255, 87, 115, 1);
+    transform: scale(0.94);
+  }
+  .touchBtn.speedBtn { background: rgba(60,60,80,0.85); }
+  .touchBtn.speedBtn:active, .touchBtn.speedBtn.pressed { background: rgba(90,90,120,1); }
 </style>
 </head>
 <body>
@@ -67,32 +140,111 @@
 <h1>🏎️ CAR RACER</h1>
 <div id="gameWrap">
   <canvas id="game" width="400" height="600"></canvas>
-  <div id="hud">Score: 0</div>
-  <div id="overlay">
-    <h2>Car Racer</h2>
-    <p>Use Arrow Keys to dodge traffic</p>
-    <button id="startBtn">Start Game</button>
+  <div id="hud"></div>
+  <div id="timerDisplay"></div>
+  <div id="overlay"></div>
+</div>
+
+<!-- On-screen touch controls: works on mobile AND can be clicked on desktop -->
+<div id="touchControls">
+  <div class="touchGroup">
+    <div class="touchBtn" id="btnLeft">⬅️</div>
+    <div class="touchBtn" id="btnRight">➡️</div>
+  </div>
+  <div class="touchGroup">
+    <div class="touchBtn speedBtn" id="btnBrake">🐢</div>
+    <div class="touchBtn speedBtn" id="btnGas">🚀</div>
   </div>
 </div>
-<div id="instructions">⬅️ ➡️ Move &nbsp; | &nbsp; ⬆️ ⬇️ Speed up / brake</div>
+
+<div id="instructions">Tap ⬅️➡️ to steer &nbsp;|&nbsp; Hold 🚀 for speed, 🐢 to brake &nbsp;|&nbsp; Swipe left/right also works</div>
 
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const hud = document.getElementById('hud');
+const timerDisplay = document.getElementById('timerDisplay');
 const overlay = document.getElementById('overlay');
-const startBtn = document.getElementById('startBtn');
 
 const W = canvas.width, H = canvas.height;
 const roadLeft = 60, roadRight = W - 60, laneCount = 3;
 const laneWidth = (roadRight - roadLeft) / laneCount;
 
-let keys = {};
+let playerName = "Player";
+let currentMode = null; // 1 = time attack, 2 = classic
+
+// ---------- THEMES ----------
+const THEMES = {
+  1: { // Time Attack - dusk/sunset theme
+    road: "#3a3450",
+    grass: "#6a3fa0",
+    edge: "#ffd166",
+    dash: "#f4f1de",
+    borderColor: "#ffd166",
+    sky: ["#2b1055", "#7597de"]
+  },
+  2: { // Classic - daytime highway
+    road: "#444444",
+    grass: "#2d6a3f",
+    edge: "#ffffff",
+    dash: "#dddddd",
+    borderColor: "#eeeeee",
+    sky: ["#87ceeb", "#e0f7fa"]
+  }
+};
+
+// ---------- INPUT (touch/click buttons + optional keyboard, no arrows required) ----------
+let controls = { left: false, right: false, gas: false, brake: false };
+
+// Keyboard still works as a bonus for desktop users, but is not required
 document.addEventListener('keydown', e => {
   if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) e.preventDefault();
-  keys[e.key] = true;
+  if (e.key === "ArrowLeft") controls.left = true;
+  if (e.key === "ArrowRight") controls.right = true;
+  if (e.key === "ArrowUp") controls.gas = true;
+  if (e.key === "ArrowDown") controls.brake = true;
 });
-document.addEventListener('keyup', e => keys[e.key] = false);
+document.addEventListener('keyup', e => {
+  if (e.key === "ArrowLeft") controls.left = false;
+  if (e.key === "ArrowRight") controls.right = false;
+  if (e.key === "ArrowUp") controls.gas = false;
+  if (e.key === "ArrowDown") controls.brake = false;
+});
+
+// On-screen touch/click buttons
+function bindHoldButton(el, key) {
+  const setState = (val) => {
+    controls[key] = val;
+    el.classList.toggle('pressed', val);
+  };
+  el.addEventListener('touchstart', e => { e.preventDefault(); setState(true); }, { passive: false });
+  el.addEventListener('touchend', e => { e.preventDefault(); setState(false); }, { passive: false });
+  el.addEventListener('touchcancel', () => setState(false));
+  el.addEventListener('mousedown', e => { e.preventDefault(); setState(true); });
+  el.addEventListener('mouseup', () => setState(false));
+  el.addEventListener('mouseleave', () => setState(false));
+}
+bindHoldButton(document.getElementById('btnLeft'), 'left');
+bindHoldButton(document.getElementById('btnRight'), 'right');
+bindHoldButton(document.getElementById('btnGas'), 'gas');
+bindHoldButton(document.getElementById('btnBrake'), 'brake');
+
+// Swipe support directly on the canvas (extra mobile convenience)
+let swipeStartX = null;
+canvas.addEventListener('touchstart', e => {
+  swipeStartX = e.touches[0].clientX;
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (swipeStartX === null) return;
+  const dx = e.touches[0].clientX - swipeStartX;
+  if (dx > 15) { controls.right = true; controls.left = false; }
+  else if (dx < -15) { controls.left = true; controls.right = false; }
+}, { passive: true });
+canvas.addEventListener('touchend', () => {
+  swipeStartX = null;
+  controls.left = false;
+  controls.right = false;
+}, { passive: true });
 
 function laneCenter(i) {
   return roadLeft + laneWidth * i + laneWidth / 2;
@@ -105,15 +257,12 @@ class Car {
   draw() {
     ctx.save();
     ctx.translate(this.x, this.y);
-    // body
     ctx.fillStyle = this.color;
     roundRect(-this.w/2, -this.h/2, this.w, this.h, 6);
     ctx.fill();
-    // windows
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     roundRect(-this.w/2 + 5, -this.h/2 + 8, this.w - 10, this.h * 0.3, 3);
     ctx.fill();
-    // wheels
     ctx.fillStyle = "#111";
     ctx.fillRect(-this.w/2 - 3, -this.h/2 + 5, 4, 12);
     ctx.fillRect(this.w/2 - 1, -this.h/2 + 5, 4, 12);
@@ -142,6 +291,7 @@ function roundRect(x, y, w, h, r) {
 }
 
 let player, enemies, score, baseSpeed, roadOffset, gameRunning, spawnTimer, spawnInterval;
+let timeLeft, timerInterval;
 const enemyColors = ["#3498db", "#f1c40f", "#2ecc71", "#9b59b6", "#e67e22"];
 
 function resetGame() {
@@ -153,12 +303,33 @@ function resetGame() {
   spawnTimer = 0;
   spawnInterval = 75;
   gameRunning = true;
-  hud.textContent = "Score: 0";
+  timeLeft = 120;
+  updateHud();
+}
+
+function updateHud() {
+  hud.innerHTML = `<div class="nameTag">${escapeHtml(playerName)}</div>Score: ${Math.floor(score)}`;
+  if (currentMode === 1) {
+    timerDisplay.textContent = "⏱ " + formatTime(timeLeft);
+  } else {
+    timerDisplay.textContent = "";
+  }
+}
+
+function formatTime(t) {
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  return m + ":" + (s < 10 ? "0" : "") + s;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function spawnEnemy() {
   const lane = Math.floor(Math.random() * laneCount);
-  // avoid stacking directly on top of another enemy in same lane too close
   const color = enemyColors[Math.floor(Math.random() * enemyColors.length)];
   enemies.push(new Car(laneCenter(lane), -80, 34, 58, color));
 }
@@ -171,26 +342,21 @@ function collide(a, b) {
 function update() {
   if (!gameRunning) return;
 
-  // speed gradually increases with score
   const speed = baseSpeed + score / 300;
 
-  // player movement
   const moveSpeed = 5;
-  if (keys["ArrowLeft"]) player.x -= moveSpeed;
-  if (keys["ArrowRight"]) player.x += moveSpeed;
+  if (controls.left) player.x -= moveSpeed;
+  if (controls.right) player.x += moveSpeed;
   let curSpeedMod = speed;
-  if (keys["ArrowUp"]) curSpeedMod = speed * 1.6;
-  if (keys["ArrowDown"]) curSpeedMod = speed * 0.5;
+  if (controls.gas) curSpeedMod = speed * 1.6;
+  if (controls.brake) curSpeedMod = speed * 0.5;
 
-  // clamp player to road
   const half = player.w / 2;
   if (player.x < roadLeft + half) player.x = roadLeft + half;
   if (player.x > roadRight - half) player.x = roadRight - half;
 
-  // road scroll
   roadOffset = (roadOffset + curSpeedMod) % 40;
 
-  // spawn enemies
   spawnTimer++;
   if (spawnTimer >= spawnInterval) {
     spawnTimer = 0;
@@ -198,41 +364,50 @@ function update() {
     spawnInterval = Math.max(35, 75 - score / 20);
   }
 
-  // update enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
     enemies[i].y += curSpeedMod;
     if (enemies[i].y > H + 80) {
       enemies.splice(i, 1);
     } else if (collide(player, enemies[i])) {
-      gameOver();
-      return;
+      if (currentMode === 2) {
+        endGame(false);
+        return;
+      } else {
+        // Time attack: crashing costs points but keeps racing
+        score = Math.max(0, score - 25);
+        enemies.splice(i, 1);
+      }
     }
   }
 
-  // score increases with distance
   score += curSpeedMod * 0.05;
-  hud.textContent = "Score: " + Math.floor(score);
+  updateHud();
 }
 
 function drawRoad() {
-  ctx.fillStyle = "#444";
-  ctx.fillRect(roadLeft, 0, roadRight - roadLeft, H);
+  const theme = THEMES[currentMode] || THEMES[2];
 
-  // side grass
-  ctx.fillStyle = "#2d6a3f";
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, theme.sky[0]);
+  grad.addColorStop(1, theme.sky[1]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = theme.grass;
   ctx.fillRect(0, 0, roadLeft, H);
   ctx.fillRect(roadRight, 0, W - roadRight, H);
 
-  // road edges
-  ctx.strokeStyle = "#fff";
+  ctx.fillStyle = theme.road;
+  ctx.fillRect(roadLeft, 0, roadRight - roadLeft, H);
+
+  ctx.strokeStyle = theme.edge;
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(roadLeft, 0); ctx.lineTo(roadLeft, H);
   ctx.moveTo(roadRight, 0); ctx.lineTo(roadRight, H);
   ctx.stroke();
 
-  // lane dashes
-  ctx.strokeStyle = "#ddd";
+  ctx.strokeStyle = theme.dash;
   ctx.lineWidth = 3;
   ctx.setLineDash([20, 20]);
   for (let i = 1; i < laneCount; i++) {
@@ -258,29 +433,88 @@ function loop() {
   if (gameRunning) requestAnimationFrame(loop);
 }
 
-function gameOver() {
+function endGame(timeUp) {
   gameRunning = false;
+  clearInterval(timerInterval);
   overlay.style.display = "flex";
+  const title = timeUp ? "⏱ Time's Up!" : "💥 Crashed!";
   overlay.innerHTML = `
-    <h2>💥 Crashed!</h2>
-    <p>Final Score: ${Math.floor(score)}</p>
-    <button id="restartBtn">Race Again</button>
+    <h2>${title}</h2>
+    <p><strong>${escapeHtml(playerName)}</strong><br>Final Score: ${Math.floor(score)}</p>
+    <div class="modeBtns">
+      <button id="restartBtn">Race Again</button>
+      <button id="menuBtn" class="secondary">Main Menu</button>
+    </div>
   `;
-  document.getElementById("restartBtn").addEventListener("click", startGame);
+  document.getElementById("restartBtn").addEventListener("click", () => startGame(currentMode));
+  document.getElementById("menuBtn").addEventListener("click", showMainMenu);
 }
 
-function startGame() {
+function startGame(mode) {
+  currentMode = mode;
   overlay.style.display = "none";
   resetGame();
+  canvas.style.borderColor = THEMES[mode].borderColor;
+
+  if (mode === 1) {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (!gameRunning) return;
+      timeLeft -= 1;
+      updateHud();
+      if (timeLeft <= 0) {
+        endGame(true);
+      }
+    }, 1000);
+  }
+
   requestAnimationFrame(loop);
 }
 
-startBtn.addEventListener("click", startGame);
+// ---------- MENUS ----------
+function showMainMenu() {
+  gameRunning = false;
+  clearInterval(timerInterval);
+  timerDisplay.textContent = "";
+  hud.innerHTML = "";
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#333";
+  ctx.fillRect(0, 0, W, H);
+  canvas.style.borderColor = "#eee";
 
-// initial static draw
-player = new Car(laneCenter(1), H - 90, 36, 60, "#e94560");
-enemies = [];
-draw();
+  overlay.style.display = "flex";
+  overlay.innerHTML = `
+    <h2>🏎️ Car Racer</h2>
+    <p>Enter your name to begin</p>
+    <input type="text" id="nameInput" placeholder="Your name" maxlength="16" value="${escapeHtml(playerName === "Player" ? "" : playerName)}">
+    <div class="modeBtns">
+      <button id="newGameBtn">New Game</button>
+    </div>
+  `;
+  document.getElementById("newGameBtn").addEventListener("click", () => {
+    const val = document.getElementById("nameInput").value.trim();
+    playerName = val.length > 0 ? val : "Player";
+    showModeMenu();
+  });
+}
+
+function showModeMenu() {
+  overlay.innerHTML = `
+    <h2>Welcome, ${escapeHtml(playerName)}!</h2>
+    <p>Choose a game mode</p>
+    <div class="modeBtns">
+      <button id="mode1Btn">🌇 Mode 1: Time Attack (2 min)</button>
+      <button id="mode2Btn">🛣️ Mode 2: Classic (Survival)</button>
+      <button id="backBtn" class="secondary">Back</button>
+    </div>
+  `;
+  document.getElementById("mode1Btn").addEventListener("click", () => startGame(1));
+  document.getElementById("mode2Btn").addEventListener("click", () => startGame(2));
+  document.getElementById("backBtn").addEventListener("click", showMainMenu);
+}
+
+// init
+showMainMenu();
 </script>
 
 </body>
