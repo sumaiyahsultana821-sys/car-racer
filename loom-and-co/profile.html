@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile | Loom &amp; Co.</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="navbar">
+    <a href="index.html" class="brand">Loom <span>&amp; Co.</span></a>
+    <button class="nav-toggle js-nav-toggle" aria-label="Toggle menu" aria-expanded="false"><span class="bar"></span></button>
+    <div class="header-search">
+      <form class="search-form js-search-form" role="search">
+        <span aria-hidden="true">🔍</span>
+        <input type="search" name="q" placeholder="Search dresses, tops, jeans..." aria-label="Search products">
+        <button type="submit" class="sr-only">Search</button>
+      </form>
+    </div>
+    <nav class="nav-menu js-nav-menu" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="shop.html">Shop</a>
+      <a href="categories.html">Categories</a>
+      <a href="outfit-builder.html">Outfit Builder</a>
+      <a href="wishlist.html">Wishlist <span class="nav-badge js-wish-count is-hidden">0</span></a>
+      <a href="cart.html">Cart <span class="nav-badge js-cart-count is-hidden">0</span></a>
+      <a href="profile.html" class="active">Profile</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="section">
+    <div class="container">
+
+      <div class="profile-header">
+        <div class="avatar" id="avatar-initial">G</div>
+        <div style="flex:1;">
+          <div id="name-display" style="font-size:1.2rem;font-weight:700;"></div>
+          <button type="button" class="link-more" style="background:none;border:none;cursor:pointer;padding:0;font-size:0.85rem;" id="edit-name-btn">Edit name</button>
+          <div id="name-edit" style="display:none;gap:8px;margin-top:8px;" class="form-row two">
+            <input type="text" id="name-input" placeholder="Your name">
+            <button type="button" class="btn btn-primary btn-sm" id="save-name-btn" style="justify-self:start;">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-tabs" role="tablist">
+        <button type="button" class="profile-tab is-active" data-tab="orders">Orders</button>
+        <button type="button" class="profile-tab" data-tab="wishlist">Wishlist</button>
+        <button type="button" class="profile-tab" data-tab="outfits">Saved Outfits</button>
+        <button type="button" class="profile-tab" data-tab="address">Address</button>
+      </div>
+
+      <div class="profile-panel is-active" id="panel-orders">
+        <div id="orders-list"></div>
+        <div id="orders-empty" class="empty-state" style="display:none;">
+          <span class="big-icon">📦</span>
+          <p>No orders yet.</p>
+          <a href="shop.html" class="btn btn-outline">Start Shopping</a>
+        </div>
+      </div>
+
+      <div class="profile-panel" id="panel-wishlist">
+        <div id="profile-wishlist-list"></div>
+        <div id="profile-wishlist-empty" class="empty-state" style="display:none;">
+          <span class="big-icon">♡</span>
+          <p>No favourites saved yet.</p>
+          <a href="shop.html" class="btn btn-outline">Browse the Shop</a>
+        </div>
+      </div>
+
+      <div class="profile-panel" id="panel-outfits">
+        <div id="outfits-list"></div>
+        <div id="outfits-empty" class="empty-state" style="display:none;">
+          <span class="big-icon">🧩</span>
+          <p>You haven't saved any outfits yet.</p>
+          <a href="outfit-builder.html" class="btn btn-outline">Build an Outfit</a>
+        </div>
+      </div>
+
+      <div class="profile-panel" id="panel-address">
+        <form id="address-form" style="max-width:480px;">
+          <div class="form-field">
+            <label for="addr-line1">Address line</label>
+            <input type="text" id="addr-line1" placeholder="123 Main Street">
+          </div>
+          <div class="form-row two">
+            <div class="form-field">
+              <label for="addr-city">City</label>
+              <input type="text" id="addr-city" placeholder="City">
+            </div>
+            <div class="form-field">
+              <label for="addr-state">State</label>
+              <input type="text" id="addr-state" placeholder="State">
+            </div>
+          </div>
+          <div class="form-row two">
+            <div class="form-field">
+              <label for="addr-zip">ZIP / Postal code</label>
+              <input type="text" id="addr-zip" placeholder="00000">
+            </div>
+            <div class="form-field">
+              <label for="addr-phone">Phone</label>
+              <input type="tel" id="addr-phone" placeholder="(555) 555-5555">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Save Address</button>
+        </form>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>Loom &amp; Co. — thoughtfully made everyday fashion.</p>
+    <p>&copy; 2026 Loom &amp; Co. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  function renderProfileHeader() {
+    const profile = getProfile();
+    document.getElementById('name-display').textContent = profile.name || 'Guest Shopper';
+    document.getElementById('avatar-initial').textContent = (profile.name || 'G').trim().charAt(0).toUpperCase() || 'G';
+    document.getElementById('name-input').value = profile.name || '';
+  }
+
+  function renderOrders() {
+    const orders = getOrders();
+    const list = document.getElementById('orders-list');
+    const empty = document.getElementById('orders-empty');
+    if (orders.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = orders.map(o => `
+      <div class="order-card">
+        <div class="order-card-head">
+          <span>Order ${escapeHtml(o.id)}</span>
+          <span class="order-status">${escapeHtml(o.status)}</span>
+        </div>
+        <div class="order-items">${o.items.map(it => `${it.qty} × ${escapeHtml(it.name)} (${escapeHtml(it.size)})`).join(', ')}</div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:0.85rem;color:var(--ink-soft);">
+          <span>${new Date(o.date).toLocaleDateString()}</span>
+          <strong style="color:var(--ink);">${money(o.total)}</strong>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderProfileWishlist() {
+    const products = getWishlist().map(getProductById).filter(Boolean);
+    const list = document.getElementById('profile-wishlist-list');
+    const empty = document.getElementById('profile-wishlist-empty');
+    if (products.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = `<p style="margin-bottom:12px;"><a class="link-more" href="wishlist.html">Manage full wishlist →</a></p>` +
+      products.map(p => `
+        <div class="wish-card">
+          ${productImageHtml(p)}
+          <div class="wish-card-body">
+            <div style="font-weight:600;">${escapeHtml(p.name)}</div>
+            <div class="price">${money(p.price)}</div>
+          </div>
+        </div>
+      `).join('');
+  }
+
+  function renderOutfits() {
+    const outfits = getOutfits();
+    const list = document.getElementById('outfits-list');
+    const empty = document.getElementById('outfits-empty');
+    if (outfits.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = outfits.map(o => `
+      <div class="outfit-card">
+        <div class="order-card-head">
+          <span>${escapeHtml(o.name)}</span>
+          <strong>${money(o.total)}</strong>
+        </div>
+        <div class="outfit-card-row">
+          ${o.items.map(it => {
+            const p = getProductById(it.productId);
+            return p ? productImageHtml(p) : '';
+          }).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:0.8rem;color:var(--ink-soft);">${new Date(o.createdAt).toLocaleDateString()}</span>
+          <button type="button" class="link-remove js-remove-outfit" data-id="${o.id}">Remove</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderAddress() {
+    const profile = getProfile();
+    const addr = profile.address || {};
+    document.getElementById('addr-line1').value = addr.line1 || '';
+    document.getElementById('addr-city').value = addr.city || '';
+    document.getElementById('addr-state').value = addr.state || '';
+    document.getElementById('addr-zip').value = addr.zip || '';
+    document.getElementById('addr-phone').value = addr.phone || '';
+  }
+
+  function initTabs() {
+    const tabs = document.querySelectorAll('.profile-tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+    });
+  }
+
+  function activateTab(name) {
+    document.querySelectorAll('.profile-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
+    document.querySelectorAll('.profile-panel').forEach(p => p.classList.toggle('is-active', p.id === `panel-${name}`));
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderProfileHeader();
+    renderOrders();
+    renderProfileWishlist();
+    renderOutfits();
+    renderAddress();
+    initTabs();
+
+    const hash = window.location.hash.replace('#', '');
+    if (['orders', 'wishlist', 'outfits', 'address'].includes(hash)) activateTab(hash);
+
+    document.getElementById('edit-name-btn').addEventListener('click', () => {
+      const editEl = document.getElementById('name-edit');
+      editEl.style.display = editEl.style.display === 'none' ? 'grid' : 'none';
+    });
+
+    document.getElementById('save-name-btn').addEventListener('click', () => {
+      const profile = getProfile();
+      const newName = document.getElementById('name-input').value.trim();
+      profile.name = newName || 'Guest Shopper';
+      setProfile(profile);
+      renderProfileHeader();
+      document.getElementById('name-edit').style.display = 'none';
+      toast('Name updated');
+    });
+
+    document.getElementById('outfits-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove-outfit');
+      if (!btn) return;
+      removeOutfit(btn.dataset.id);
+      renderOutfits();
+      toast('Outfit removed');
+    });
+
+    document.getElementById('address-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const profile = getProfile();
+      profile.address = {
+        line1: document.getElementById('addr-line1').value.trim(),
+        city: document.getElementById('addr-city').value.trim(),
+        state: document.getElementById('addr-state').value.trim(),
+        zip: document.getElementById('addr-zip').value.trim(),
+        phone: document.getElementById('addr-phone').value.trim(),
+      };
+      setProfile(profile);
+      toast('Address saved');
+    });
+  });
+</script>
+</body>
+</html>

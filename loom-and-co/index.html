@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loom &amp; Co. | Everyday Fashion, Thoughtfully Made</title>
+<meta name="description" content="Loom & Co. — dresses, tops, jeans, kurti sets, jackets, shoes and accessories. Build your outfit, save favourites, shop the new season.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="navbar">
+    <a href="index.html" class="brand">Loom <span>&amp; Co.</span></a>
+    <button class="nav-toggle js-nav-toggle" aria-label="Toggle menu" aria-expanded="false"><span class="bar"></span></button>
+    <div class="header-search">
+      <form class="search-form js-search-form" role="search">
+        <span aria-hidden="true">🔍</span>
+        <input type="search" name="q" placeholder="Search dresses, tops, jeans..." aria-label="Search products">
+        <button type="submit" class="sr-only">Search</button>
+      </form>
+    </div>
+    <nav class="nav-menu js-nav-menu" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="shop.html">Shop</a>
+      <a href="categories.html">Categories</a>
+      <a href="outfit-builder.html">Outfit Builder</a>
+      <a href="wishlist.html">Wishlist <span class="nav-badge js-wish-count is-hidden">0</span></a>
+      <a href="cart.html">Cart <span class="nav-badge js-cart-count is-hidden">0</span></a>
+      <a href="profile.html">Profile</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Dress it up.<br>Build it your way.</h1>
+      <p class="lead">Shop new arrivals, discover trending collections, and use our Outfit Builder to put a whole look together in seconds.</p>
+      <a href="shop.html" class="btn btn-primary">Shop Now</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2>New Arrivals</h2>
+        <a href="shop.html?sort=new" class="link-more">See all →</a>
+      </div>
+      <div id="new-arrivals" class="grid-scroll"></div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <h2>Trending Collections</h2>
+        <a href="shop.html?sort=trending" class="link-more">See all →</a>
+      </div>
+      <div id="trending" class="grid-scroll"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="offer-banner">
+        <div>
+          <h3>Extra 20% off Kurti Sets</h3>
+          <p>This week only — use code LOOM20 at checkout.</p>
+        </div>
+        <a href="shop.html?category=kurti-set" class="btn btn-outline" style="border-color:#fff;color:#fff;">Shop the Offer</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2>Shop by Category</h2>
+        <a href="categories.html" class="link-more">All categories →</a>
+      </div>
+      <div id="home-categories" class="grid"></div>
+    </div>
+  </section>
+
+  <section class="section section-alt center">
+    <div class="container">
+      <h2>Not sure what goes together?</h2>
+      <p class="lead" style="margin:0 auto 18px;">Use the Outfit Builder to mix a top, bottom, shoes and accessories — and see the total price before you buy.</p>
+      <a href="outfit-builder.html" class="btn btn-primary">Try the Outfit Builder</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>Loom &amp; Co. — thoughtfully made everyday fashion.</p>
+    <p>&copy; 2026 Loom &amp; Co. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  function renderStrip(containerId, products) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = products.map(productCardHtml).join('') ||
+      '<p class="empty-state">No products to show yet.</p>';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderStrip('new-arrivals', PRODUCTS.filter(p => p.tag === 'New').slice(0, 8));
+    renderStrip('trending', PRODUCTS.filter(p => p.tag === 'Trending').slice(0, 8));
+
+    const catEl = document.getElementById('home-categories');
+    catEl.innerHTML = CATEGORIES.map(c => `
+      <a class="category-card" href="shop.html?category=${c.id}">
+        <span class="cat-icon">${c.icon}</span>
+        <h3>${c.name}</h3>
+      </a>
+    `).join('');
+  });
+</script>
+</body>
+</html>
